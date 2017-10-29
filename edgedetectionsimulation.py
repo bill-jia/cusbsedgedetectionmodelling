@@ -71,9 +71,9 @@ class Simulation:
         self.radius_interval = self.plate_radius / self.radius_granularity
         self.angle_interval = 2 * np.pi / self.angle_granularity
 
-        self.radius_h = floatrange(0, self.plate_radius, self.radius_interval)
-        self.angle_h = floatrange(0, 2 * np.pi, self.angle_interval)
-        self.time_h = floatrange(0, 24 * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef, self.time_interval)
+        self.radius_h = floatrange(self.radius_interval, self.plate_radius + self.radius_interval, self.radius_interval)
+        self.angle_h = floatrange(self.angle_interval, 2 * np.pi + self.angle_interval, self.angle_interval)
+        self.time_h = floatrange(self.time_interval, 24 * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef + self.time_interval, self.time_interval)
 
         self.plate = Media()
         self.plate.AHL_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
@@ -103,14 +103,12 @@ class Simulation:
         new_Bgal_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         for i in range(0,self.radius_granularity):
             for j in range(0,self.angle_granularity):
-                print(Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j]))
                 new_AHL_state[i,j] = self.UpdateAHL_conc(cur_state[0],i,j) * self.dedimT(t)
                 new_CI_state[i,j] = self.k3 * Bacteria.f_light(self.light_mask[i,j])
                 new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
         self.plate.AHL_history.append(new_AHL_state)
         self.plate.CI_history.append(new_CI_state)
         self.plate.Bgal_history.append(new_Bgal_state)
-        print(new_AHL_state)
         plt.imshow(new_Bgal_state, interpolation='nearest')
         plt.show()
 
