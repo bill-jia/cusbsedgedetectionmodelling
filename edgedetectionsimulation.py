@@ -92,9 +92,14 @@ class Simulation:
         return t * self.AHL_Diffusion_Coef / (self.plate_radius ** 2)
 
     def run(self):
+        count = 0
         for t in self.time_h:
             print(t)
             self.Step(t)
+            count += 1
+            if count % 1 == 0:
+                plt.imshow(self.plate.get_cur_state()[1], interpolation='nearest')
+                plt.show()
 
     def Step(self, t):
         cur_state = self.plate.get_cur_state()
@@ -109,11 +114,11 @@ class Simulation:
         self.plate.AHL_history.append(new_AHL_state)
         self.plate.CI_history.append(new_CI_state)
         self.plate.Bgal_history.append(new_Bgal_state)
-        plt.imshow(new_Bgal_state, interpolation='nearest')
-        plt.show()
+        #plt.imshow(new_Bgal_state, interpolation='nearest')
+        #plt.show()
 
     def UpdateAHL_conc(self,cur_state,i,j):
-        new_state = cur_state[i,j]
+        new_state = 0
         if i == 0:
             backwardradius = i
         else:
@@ -123,17 +128,28 @@ class Simulation:
         else:
             forwardradius = i + 1
         if j == 0:
-            backwardangle = j
+            backwardangle = self.angle_granularity - 1
         else:
             backwardangle = j - 1
         if j == (self.angle_granularity - 1):
-            forwardangle = j
+            forwardangle = 0
         else:
             forwardangle = j + 1
         new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
+        t1 = new_state
         new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
-        new_state += (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.radius_interval ** 2) / (self.dedimR(self.radius_h[i]) ** 2)
+        t2 = new_state
+        new_state += (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2) / (self.dedimR(self.radius_h[i]) ** 2)
+        t3 = new_state
         new_state += self.k1 * Bacteria.f_light(self.light_mask[i,j]) - self.k2 * cur_state[i,j]
+        t4 = new_state
+        if new_state < 0:
+            print("r:" + str(i) + ", theta:" + str(j))
+            print("t1: " + str(t1))
+            print("t2: " + str(t2))
+            print("t3: " + str(t3))
+            print("t4: " + str(t4))
+            print(new_state)
         return new_state
 
 sim = Simulation()
