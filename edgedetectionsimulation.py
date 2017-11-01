@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from scipy import integrate
 
 def floatrange(start,end,inter):
@@ -59,7 +60,7 @@ class Simulation:
         #Granularity constants
         self.time_granularity = 0.0027
         self.radius_granularity = 100
-        self.angle_granularity = 360
+        self.angle_granularity = 100
         #Setup initial conditions
         self.k1 = 0.03 # nM/hr
         self.k2 = 0.012 # hr^-1
@@ -83,15 +84,15 @@ class Simulation:
         self.plate.Bgal_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
 
         self.light_mask = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        for i in range(170,175):
-            for j in range(int(self.radius_granularity/4),3*int(self.radius_granularity/4)):
+        for i in range(30,35):
+            for j in range(0,self.radius_granularity):
                 self.light_mask[j,i] = 1
-        for i in range(185,190):
-            for j in range(int(self.radius_granularity/4),3*int(self.radius_granularity/4)):
-                self.light_mask[j,i] = 1
-        for i in range(100,180):
-            for j in range(10,15):
-                self.light_mask[j,i] = 1
+        #for i in range(185,190):
+        #    for j in range(int(self.radius_granularity/4),3*int(self.radius_granularity/4)):
+        #        self.light_mask[j,i] = 1
+        #for i in range(100,180):
+        #    for j in range(10,15):
+        #        self.light_mask[j,i] = 1
 
     def dedimR(self, r):
         return r / self.plate_radius
@@ -105,8 +106,18 @@ class Simulation:
             print(t)
             self.Step(t)
             count += 1
-            if count % 10 == 0:
-                plt.imshow(self.plate.get_cur_state()[1], interpolation='nearest')
+            if count % 1 == 0:
+                fig = plt.figure()
+                #ax = Axes3D(fig)
+                rad = np.linspace(0,self.plate_radius,100)
+                azm = np.linspace(0,2 * np.pi,100)
+                r,th = np.meshgrid(rad,azm)
+                z = self.plate.get_cur_state()[1]
+                plt.subplot(projection="polar")
+                colors = plt.pcolormesh(th,r,z)
+                plt.plot(azm, r, color='k', ls='none')
+                plt.colorbar(colors)
+                plt.grid()
                 plt.show()
 
     def Step(self, t):
@@ -122,8 +133,6 @@ class Simulation:
         self.plate.AHL_history.append(new_AHL_state)
         self.plate.CI_history.append(new_CI_state)
         self.plate.Bgal_history.append(new_Bgal_state)
-        #plt.imshow(new_Bgal_state, interpolation='nearest')
-        #plt.show()
 
     def UpdateAHL_conc(self,cur_state,i,j):
         new_state = 0
@@ -144,8 +153,10 @@ class Simulation:
         else:
             forwardangle = j + 1
         if i == 0:
-            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.radius_interval ** 2)
+            #new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
+            #new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.radius_interval ** 2)
+            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
+            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
         elif i == (self.radius_granularity - 1):
             #new_state += (cur_state[i,j] - cur_state[i-1,j]) / (self.radius_interval) / self.dedimR(self.radius_h[i])
             #new_state += (cur_state[i,j] - 2 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.radius_interval ** 2)
