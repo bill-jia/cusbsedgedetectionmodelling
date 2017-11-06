@@ -28,7 +28,7 @@ Sets up the simulation parameters and implements the function which will step th
 ### Issues
 1. Time step/resolution seems to be unclear in the paper, which mentions t* = 0.0027 = 24 hours but the calculation doesn't add up. Furthermore, ending the simulation at time t* = 0.0027 results in no change at all, although this may be caused by implementing F_logic incorrectly or the AHL update function. The resolution of the time step is important, because there seems to be different results depending on how fine the time step is
 | Timestep t* = 0.000027 | Timestep t* = 0.00027 | Timestep t* = 0.0027 | Time Elapsed |
-|------------------------|-----------------------|----------------------|--------------|
+| ---------------------- | --------------------- | -------------------- | ------------ |
 | (000027/200_000027.png) | (00027/20_00027.png) | (0027/2_000027.png) | t* = 0.0054 |
 
 2. If t* becomes too large overflow occurs
