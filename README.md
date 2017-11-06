@@ -42,4 +42,6 @@ Sets up the simulation parameters and implements the function which will step th
 I think dedimensionalisation is a way of lumping together several variables to form a new variable that simplifies downstream equation manipulation.
 1. Radius is dedimensionalised(r*) by the equation r* = r/R where R = plate radius (4.25cm) and r = current radius position on mesh
 2. Time is dedimensionalised(t*) by the equation t* = tD/R^2 where D = diffusion coefficient of AHL (1.67 * 10^-7), R = plate radius (4.25cm), and t = time elapsed (I believe this is meant to be in seconds)
+#### Finite Difference Methods
+To make differential equations computable you need to cut the continuous domains (space and time) up into discrete chunks, hence the mesh. Once you have discrete chunks you can express dy/dx = (f(x+h)-f(x))/h where h is a chunk of your domain and approaches 0. This expression of dy/dx is a forward difference because it is taking a step ahead and comparing it against the current. There is also the backward difference dy/dx = (f(x)-f(x-h))/h and central difference dy/dx = (f(x+h)-f(x-h))/(2*h). The central difference method has the smallest error term, which is usually omitted from the expressions. There are also expressions for the second derivative onwards which can be derived from Taylor expansion and higher orders.
 
