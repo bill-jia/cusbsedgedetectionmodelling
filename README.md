@@ -35,7 +35,7 @@ Sets up the simulation parameters and implements the function which will step th
 
 | Timestep t* = 0.000027 | Timestep t* = 0.00027 | Timestep t* = 0.0027 | Time Elapsed |
 | ---------------------- | --------------------- | -------------------- | ------------ |
-| (000027/200_000027.png) | (00027/20_00027.png) | (0027/2_000027.png) | t* = 0.0054 |
+| ![](000027/200_000027.png) | ![](00027/20_00027.png) | ![](0027/2_000027.png) | t* = 0.0054 |
 
 ### Misc Information that might help
 #### Dedimensionalisation of Radius and Time (dedimR and dedimT in code)
