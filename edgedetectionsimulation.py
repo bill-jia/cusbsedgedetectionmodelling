@@ -58,12 +58,12 @@ class Media:
 class Simulation:
     def __init__(self):
         #Granularity constants
-        self.time_granularity = 0.0027
+        self.time_granularity = 0.00027
         self.radius_granularity = 100
         self.angle_granularity = 100
         #Setup initial conditions
-        self.k1 = 0.03 # nM/hr
-        self.k2 = 0.012 # hr^-1
+        self.k1 = 0.03 # nM/hr (convert to per second)
+        self.k2 = 0.012 # hr^-1 (convert to per second)
         self.k3 = 0.8 # nM/Miller
         self.k4 = 289 # Miller units
         self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
@@ -75,7 +75,7 @@ class Simulation:
 
         self.radius_h = floatrange(self.radius_interval, self.plate_radius, self.radius_interval)
         self.angle_h = floatrange(self.angle_interval, 2 * np.pi, self.angle_interval)
-        self.time_h = floatrange(self.time_interval, 24 * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef + self.time_interval, self.time_interval)
+        self.time_h = floatrange(self.time_interval, 1 * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef + self.time_interval, self.time_interval)
         #self.time_h = floatrange(self.time_interval, 24 * 3600, self.time_interval)
 
         self.plate = Media()
@@ -84,8 +84,8 @@ class Simulation:
         self.plate.Bgal_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
 
         self.light_mask = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        for i in range(30,35):
-            for j in range(0,self.radius_granularity):
+        for i in range(0,int(self.radius_granularity/2)):
+            for j in range(0,self.angle_granularity):
                 self.light_mask[i,j] = 1
         #for i in range(50,55):
         #    for j in range(int(self.radius_granularity/4),3*int(self.radius_granularity/4)):
@@ -102,34 +102,50 @@ class Simulation:
 
     def run(self):
         count = 0
+        count2 = 0
         for t in self.time_h:
-            print(t)
+            #print(t)
             self.Step(t)
             count += 1
+            count2 += 1
             if count % 1 == 0:
                 fig = plt.figure()
                 #ax = Axes3D(fig)
-                rad = np.linspace(0,self.plate_radius,100)
-                azm = np.linspace(0,2 * np.pi,100)
+                rad = np.linspace(0,self.plate_radius,self.radius_granularity)
+                azm = np.linspace(0,2 * np.pi,self.angle_granularity)
                 r,th = np.meshgrid(rad,azm)
                 z = self.plate.get_cur_state()[1]
-                plt.subplot(projection="polar")
+                ax = plt.subplot(1,2,1,projection="polar")
+                ax.set_title("Bgal")
                 colors = plt.pcolormesh(th,r,z)
                 plt.plot(azm, r, color='k', ls='none')
                 plt.colorbar(colors)
                 plt.grid()
-                plt.show()
+                z = self.plate.get_cur_state()[0]
+                ax = plt.subplot(1,2,2,projection="polar")
+                ax.set_title("AHL")
+                colors = plt.pcolormesh(th,r,z)
+                plt.plot(azm, r, color='k', ls='none')
+                plt.colorbar(colors)
+                plt.grid()
+                #plt.show()
+                plt.savefig(str(count2) + "_00027.png")
+                plt.close(fig)
 
     def Step(self, t):
         cur_state = self.plate.get_cur_state()[0].transpose()
         new_AHL_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         new_CI_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         new_Bgal_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        #f = open("debug.txt","w")
         for i in range(0,self.radius_granularity):
+            #f.write("Radius: " + str(i) + "\n")
             for j in range(0,self.angle_granularity):
                 new_AHL_state[i,j] = cur_state[i,j] + self.UpdateAHL_conc(cur_state,i,j) * self.dedimT(self.time_interval)
                 new_CI_state[i,j] = self.k3 * Bacteria.f_light(self.light_mask[i,j])
                 new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
+                #f.write("Angle " + str(j) + ": " + str(new_Bgal_state[i,j]))
+        #f.close()
         self.plate.AHL_history.append(new_AHL_state.transpose())
         self.plate.CI_history.append(new_CI_state.transpose())
         self.plate.Bgal_history.append(new_Bgal_state.transpose())
@@ -153,18 +169,18 @@ class Simulation:
         else:
             forwardangle = j + 1
         if i == 0:
-            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.radius_interval ** 2)
+            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.dedimR(self.radius_interval)) / self.dedimR(self.radius_h[i])
+            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.dedimR(self.radius_interval) ** 2)
             #new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
             #new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
         elif i == (self.radius_granularity - 1):
-            new_state += (cur_state[i,j] - cur_state[i-1,j]) / (self.radius_interval) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[i,j] - 2 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.radius_interval ** 2)
+            new_state += (cur_state[i,j] - cur_state[i-1,j]) / self.dedimR(self.radius_interval) / self.dedimR(self.radius_h[i])
+            new_state += (cur_state[i,j] - 2 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.dedimR(self.radius_interval) ** 2)
             #new_state += (3 * cur_state[i,j] - 4 * cur_state[i-1,j] + cur_state[i-2,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
             #new_state += (2 * cur_state[i,j] - 5 * cur_state[i-1,j] + 4 * cur_state[i-2,j] - cur_state[i-3,j]) / (self.radius_interval ** 2)
         else:
-            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
+            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.dedimR(self.radius_interval)) / self.dedimR(self.radius_h[i])
+            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2)
 
         new_state += (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2) / (self.dedimR(self.radius_h[i]) ** 2)
         #if (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) != 0:
