@@ -74,11 +74,11 @@ class Simulation:
             elif opt in ("-g", "--ginterval"):
                 self.graph_interval = int(arg)
         #Granularity constants
-        self.time_granularity = 10000
+        self.time_granularity = 1000
         self.radius_granularity = 100
         self.angle_granularity = 100
         #Setup initial conditions
-        self.max_time = 24*60*60.0
+        self.max_time = 36*60*60.0
         self.k1 = 0.03 # nM/hr (convert to per second)
         self.k2 = 0.012 # hr^-1 (convert to per second)
         self.k3 = 0.8 # nM/Miller
