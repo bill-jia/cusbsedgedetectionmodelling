@@ -74,7 +74,7 @@ class Simulation:
             elif opt in ("-g", "--ginterval"):
                 self.graph_interval = int(arg)
         #Granularity constants
-        self.time_granularity = 1000
+        self.time_granularity = 10
         self.radius_granularity = 100
         self.angle_granularity = 100
         #Setup initial conditions
@@ -131,7 +131,7 @@ class Simulation:
                 #ax = Axes3D(fig)
                 rad = np.linspace(0,self.plate_radius,self.radius_granularity)
                 azm = np.linspace(0,2 * np.pi,self.angle_granularity)
-                r,th = np.meshgrid(rad,azm)
+                th,r = np.meshgrid(azm,rad)
                 z = self.plate.get_cur_state()[1]
                 ax = plt.subplot(1,2,1,projection="polar")
                 ax.set_title("Bgal")
@@ -154,7 +154,7 @@ class Simulation:
                 plt.close(fig)
 
     def Step(self, t):
-        cur_state = self.plate.get_cur_state()[0].transpose()
+        cur_state = self.plate.get_cur_state()[0]
         new_AHL_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         new_CI_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         new_Bgal_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
@@ -167,9 +167,9 @@ class Simulation:
                 new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
                 #f.write("Angle " + str(j) + ": " + str(new_Bgal_state[i,j]))
         #f.close()
-        self.plate.AHL_history.append(new_AHL_state.transpose())
-        self.plate.CI_history.append(new_CI_state.transpose())
-        self.plate.Bgal_history.append(new_Bgal_state.transpose())
+        self.plate.AHL_history.append(new_AHL_state)
+        self.plate.CI_history.append(new_CI_state)
+        self.plate.Bgal_history.append(new_Bgal_state)
 
     def UpdateAHL_conc(self,cur_state,i,j):
         new_state = 0
