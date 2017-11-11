@@ -59,39 +59,40 @@ class Media:
         return (a,b,c)
 
 class Simulation:
-    def __init__(self):
+    def __init__(self,argv):
         #Output folder and graph saving interval
         self.outputfolder = datetime.now().strftime("%y%m%d-%H-%M-%S")
         self.graph_interval = 10
         try:
-            opts, args = getopt.getopt(sys.argv,"o:g:",["ofile=", "ginterval="])
+            opts, args = getopt.getopt(argv,"o:g:",["ofile=", "ginterval="])
         except getopt.GetoptError:
-            print('test.py -o <outputfolder>')
+            print('edgedetectionsimulation.py -o <outputfolder> -g <graph_interval>')
             sys.exit(2)
         for opt, arg in opts:
             if opt in ("-o", "--ofile"):
                 self.outputfolder = arg
             elif opt in ("-g", "--ginterval"):
-                self.graph_interval = int(opt)
+                self.graph_interval = int(arg)
         #Granularity constants
-        self.time_granularity = 0.00027
+        self.time_granularity = 10000
         self.radius_granularity = 100
         self.angle_granularity = 100
         #Setup initial conditions
+        self.max_time = 24*60*60.0
         self.k1 = 0.03 # nM/hr (convert to per second)
         self.k2 = 0.012 # hr^-1 (convert to per second)
         self.k3 = 0.8 # nM/Miller
         self.k4 = 289 # Miller units
         self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
         self.plate_radius = 4.25 # cm
-        self.time_interval = self.time_granularity * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef
+        self.time_interval = self.max_time / self.time_granularity
         #self.time_interval = 24 * 3600 * self.time_granularity
         self.radius_interval = self.plate_radius / self.radius_granularity
         self.angle_interval = 2 * np.pi / self.angle_granularity
 
         self.radius_h = floatrange(self.radius_interval, self.plate_radius, self.radius_interval)
         self.angle_h = floatrange(self.angle_interval, 2 * np.pi, self.angle_interval)
-        self.time_h = floatrange(self.time_interval, 1 * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef + self.time_interval, self.time_interval)
+        self.time_h = floatrange(self.time_interval, self.max_time, self.time_interval)
         #self.time_h = floatrange(self.time_interval, 24 * 3600, self.time_interval)
 
         self.plate = Media()
@@ -118,7 +119,9 @@ class Simulation:
 
     def run(self):
         count = 0
-        maxzeros = int(np.log10(max(self.time_h)))
+        maxzeros = int(np.log10(max(self.time_h))) + 1
+        print(max(self.time_h))
+        print(self.graph_interval)
         for t in self.time_h:
             #print(t)
             self.Step(t)
@@ -207,5 +210,5 @@ class Simulation:
 
         return new_state
 
-sim = Simulation()
+sim = Simulation(sys.argv[1:])
 sim.run()
