@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import sys, os, getopt
+from datetime import datetime
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -29,6 +31,7 @@ class Bacteria:
         B_response_range = Bacteria.B_response_max - Bacteria.B_response_min
         light_response = Bacteria.f_light_K / (Bacteria.f_light_K + light_intensity)
         return light_response * B_response_range + Bacteria.B_response_min
+    
     def f_logic(AHL_conc, CI_conc):
         #Model lux-lambda promoter
         f_lux_term1 = Bacteria.LuxRtot + Bacteria.LuxR_dimer_K / (4 * AHL_conc ** 2)
@@ -57,6 +60,19 @@ class Media:
 
 class Simulation:
     def __init__(self):
+        #Output folder and graph saving interval
+        self.outputfolder = datetime.now().strftime("%y%m%d-%H-%M-%S")
+        self.graph_interval = 10
+        try:
+            opts, args = getopt.getopt(sys.argv,"o:g:",["ofile=", "ginterval="])
+        except getopt.GetoptError:
+            print('test.py -o <outputfolder>')
+            sys.exit(2)
+        for opt, arg in opts:
+            if opt in ("-o", "--ofile"):
+                self.outputfolder = arg
+            elif opt in ("-g", "--ginterval"):
+                self.graph_interval = int(opt)
         #Granularity constants
         self.time_granularity = 0.00027
         self.radius_granularity = 100
@@ -102,13 +118,12 @@ class Simulation:
 
     def run(self):
         count = 0
-        count2 = 0
+        maxzeros = int(np.log10(max(self.time_h)))
         for t in self.time_h:
             #print(t)
             self.Step(t)
             count += 1
-            count2 += 1
-            if count % 1 == 0:
+            if count % self.graph_interval == 0:
                 fig = plt.figure()
                 #ax = Axes3D(fig)
                 rad = np.linspace(0,self.plate_radius,self.radius_granularity)
@@ -129,7 +144,10 @@ class Simulation:
                 plt.colorbar(colors)
                 plt.grid()
                 #plt.show()
-                plt.savefig(str(count2) + "_00027.png")
+                if not os.path.isdir(self.outputfolder):
+                    os.mkdir(self.outputfolder)
+                plt.savefig( os.path.join(self.outputfolder,str(int(t)).zfill(maxzeros) + "_" +
+                    str(self.time_granularity)+".png"))
                 plt.close(fig)
 
     def Step(self, t):
