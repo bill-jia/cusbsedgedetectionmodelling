@@ -128,6 +128,7 @@ class Simulation:
             count += 1
             if count % self.graph_interval == 0:
                 fig = plt.figure()
+                fig.suptitle(str(int(t/60)) + " min")
                 #ax = Axes3D(fig)
                 rad = np.linspace(0,self.plate_radius,self.radius_granularity)
                 azm = np.linspace(0,2 * np.pi,self.angle_granularity)
@@ -172,7 +173,10 @@ class Simulation:
         self.plate.Bgal_history.append(new_Bgal_state)
 
     def UpdateAHL_conc(self,cur_state,i,j):
-        new_state = 0
+        dudt = 0
+        dudr = 0
+        du2dr2 = 0
+        du2dtheta2 = 0
         if i == 0:
             backwardradius = i
         else:
@@ -190,25 +194,25 @@ class Simulation:
         else:
             forwardangle = j + 1
         if i == 0:
-            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.dedimR(self.radius_interval)) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.dedimR(self.radius_interval) ** 2)
+            dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (2 * self.dedimR(self.radius_interval)) 
+            du2dr2 = (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2) % self.angle_granularity]) / (self.dedimR(self.radius_interval) ** 2)
             #new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
             #new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
         elif i == (self.radius_granularity - 1):
-            new_state += (cur_state[i,j] - cur_state[i-1,j]) / self.dedimR(self.radius_interval) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[i,j] - 2 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.dedimR(self.radius_interval) ** 2)
+            dudr = (cur_state[i,j] - cur_state[i-1,j]) / self.dedimR(self.radius_interval)
+            du2dr2 = (cur_state[i,j] - 2 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.dedimR(self.radius_interval) ** 2)
             #new_state += (3 * cur_state[i,j] - 4 * cur_state[i-1,j] + cur_state[i-2,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
             #new_state += (2 * cur_state[i,j] - 5 * cur_state[i-1,j] + 4 * cur_state[i-2,j] - cur_state[i-3,j]) / (self.radius_interval ** 2)
         else:
-            new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.dedimR(self.radius_interval)) / self.dedimR(self.radius_h[i])
-            new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2)
+            dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.dedimR(self.radius_interval))
+            du2dr2 = (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2)
 
-        new_state += (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2) / (self.dedimR(self.radius_h[i]) ** 2)
+        du2dtheta2 = (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2) / (self.dedimR(self.radius_h[i]) ** 2)
         #if (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) != 0:
         #    print("radius:" + str(i) + ", angle:" + str(j) + ", curstate:" + str(cur_state[i,j]) + ", val:" + str((cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle])))
-        new_state += self.k1 * Bacteria.f_light(self.light_mask[i,j]) - self.k2 * cur_state[i,j]
+        dudt += 1/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1/(self.dedimR(self.radius_h[i]) ** 2)*du2dtheta2 + self.k1 * Bacteria.f_light(self.light_mask[i,j]) - self.k2 * cur_state[i,j]
 
-        return new_state
+        return dudt
 
 sim = Simulation(sys.argv[1:])
 sim.run()
