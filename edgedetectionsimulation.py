@@ -40,34 +40,25 @@ class Bacteria:
 
 class Media:
     def __init__(self):
-        self.AHL_history = []
-        self.CI_history = []
-        self.Bgal_history = []
+        self.AHL_history = None
+        self.CI_history = None
+        self.Bgal_history = None
     def get_cur_state(self):
-        a = None
-        b = None
-        c = None
-        if len(self.AHL_history) > 0:
-            a = self.AHL_history[len(self.AHL_history)-1]
-        if len(self.Bgal_history) > 0:
-            b = self.Bgal_history[len(self.Bgal_history)-1]
-        if len(self.CI_history) > 0:
-            c = self.CI_history[len(self.CI_history)-1]
-        return (a,b,c)
+        return (self.AHL_history,self.Bgal_history,self.CI_history)
 
 class Simulation:
     def __init__(self):
         #Granularity constants
-        self.time_granularity = 0.00027
-        self.radius_granularity = 100
-        self.angle_granularity = 100
+        self.time_granularity = 0.00000027
+        self.radius_granularity = 1000
+        self.angle_granularity = 1000
         #Setup initial conditions
-        self.k1 = 0.03 # nM/hr (convert to per second)
-        self.k2 = 0.012 # hr^-1 (convert to per second)
+        self.plate_radius = 4.25 # cm
+        self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
+        self.k1 = 0.03 / 3600 * self.plate_radius ** 2 / self.AHL_Diffusion_Coef# nM/hr (convert to per second)
+        self.k2 = 0.012 / 3600 * self.plate_radius ** 2 / self.AHL_Diffusion_Coef# hr^-1 (convert to per second)
         self.k3 = 0.8 # nM/Miller
         self.k4 = 289 # Miller units
-        self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
-        self.plate_radius = 4.25 # cm
         self.time_interval = self.time_granularity * (self.plate_radius ** 2) / self.AHL_Diffusion_Coef
         #self.time_interval = 24 * 3600 * self.time_granularity
         self.radius_interval = self.plate_radius / self.radius_granularity
@@ -79,9 +70,9 @@ class Simulation:
         #self.time_h = floatrange(self.time_interval, 24 * 3600, self.time_interval)
 
         self.plate = Media()
-        self.plate.AHL_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
-        self.plate.CI_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
-        self.plate.Bgal_history.append(np.zeros(shape=(self.radius_granularity,self.angle_granularity)))
+        self.plate.AHL_history = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        self.plate.CI_history = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        self.plate.Bgal_history = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
 
         self.light_mask = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         for i in range(0,int(self.radius_granularity/2)):
@@ -146,9 +137,9 @@ class Simulation:
                 new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
                 #f.write("Angle " + str(j) + ": " + str(new_Bgal_state[i,j]))
         #f.close()
-        self.plate.AHL_history.append(new_AHL_state.transpose())
-        self.plate.CI_history.append(new_CI_state.transpose())
-        self.plate.Bgal_history.append(new_Bgal_state.transpose())
+        self.plate.AHL_history = new_AHL_state.transpose()
+        self.plate.CI_history = new_CI_state.transpose()
+        self.plate.Bgal_history = new_Bgal_state.transpose()
 
     def UpdateAHL_conc(self,cur_state,i,j):
         new_state = 0
