@@ -110,7 +110,6 @@ class Simulation:
 
         #Initialize plate
         self.plate = Media(self.radius_granularity, self.angle_granularity)
-
         #Set light input
         self.light_mask = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
         for i in range(0,int(self.radius_granularity/2)):
@@ -248,6 +247,7 @@ class Simulation:
         self.plate.CI_history = new_CI_state
         self.plate.Bgal_history = new_Bgal_state
         self.total_time += self.dedimT(self.time_interval)
+
 
     def UpdateAHL_conc(self,cur_state,i,j):
         dudt = 0
