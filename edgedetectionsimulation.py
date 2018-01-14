@@ -66,12 +66,13 @@ class Simulation:
         self.outputfolder = datetime.now().strftime("%y%m%d-%H-%M-%S") #Default output folder is just a timestamp
         self.graph_interval = 10
         self.plots = False
-        self.max_time = 36*60*60.0
+        self.max_time = 24*60*60.0
         self.plot_derivatives = False
+        self.plot_transfer_functions = False
 
         #Change adjustable parameters according to command line input
         try:
-            opts, args = getopt.getopt(argv,"o:g:t:pd",["ofile=", "ginterval=", "plot", "time=", "derivativesplot"])
+            opts, args = getopt.getopt(argv,"o:g:t:pdf",["ofile=", "ginterval=", "plot", "time=", "derivativesplot", "transferfunctions"])
         except getopt.GetoptError:
             print('edgedetectionsimulation.py -p <makeplots> -o <outputfolder> -g <graph_interval> -t -d')
             sys.exit(2)
@@ -82,14 +83,16 @@ class Simulation:
                 self.plots = True                
             elif opt in ("-g", "--ginterval"): #Set time interval at which graphs are produced
                 self.graph_interval = int(arg)
-            elif opt in ("-d", "derivativesplot"): # Flag to create graphs of each term in diffusion equation
+            elif opt in ("-d", "--derivativesplot"): # Flag to create graphs of each term in diffusion equation
                 self.plot_derivatives = True
-            elif opt in ("-t", "time="):
+            elif opt in ("-t", "--time="):
                 self.max_time = float(arg)*60*60 #Set max time of simulation
+            elif opt in ("-f", "--transferfunctions"):
+                self.plot_transfer_functions = True
         #Granularity constants
-        self.time_granularity = 3000 # Time step twice as fine as space step
-        self.radius_granularity = 1000
-        self.angle_granularity = 100
+        self.time_granularity = 100 # Time step twice as fine as space step
+        self.radius_granularity = 40
+        self.angle_granularity = 40
         
         #Setup initial conditions
         self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
@@ -98,13 +101,16 @@ class Simulation:
         self.k2 = 0.012 / 3600 / (self.AHL_Diffusion_Coef/self.plate_radius**2) # hr^-1 converted to 1/dimensionless time
         self.k3 = 0.8 # nM/Miller
         self.k4 = 289.0 # Miller units
+        print("k1= ", self.k1)
+        print("k2= ", self.k2)
         self.time_interval = self.max_time / self.time_granularity
         self.radius_interval = self.plate_radius / self.radius_granularity
         self.angle_interval = 2.0 * np.pi / self.angle_granularity
 
-        #Generate sampling points
-        self.radius_h = floatrange(self.radius_interval, self.plate_radius, self.radius_interval)
-        self.angle_h = floatrange(self.angle_interval, 2 * np.pi, self.angle_interval)
+        # Generate sampling points
+        # Sampling points start at 
+        self.radius_h = floatrange(self.radius_interval/2, self.plate_radius - self.radius_interval/2, self.radius_interval)
+        self.angle_h = floatrange(0, 2 * np.pi - self.angle_interval, self.angle_interval)
         self.time_h = floatrange(self.time_interval, self.max_time, self.time_interval)
         #self.time_h = floatrange(self.time_interval, 24 * 3600, self.time_interval)
 
@@ -126,6 +132,35 @@ class Simulation:
 
     def run(self):
         count = 0
+        if self.plot_transfer_functions:
+            # Plot transfer functions if flag is true
+            light = floatrange(0, 0.1, 0.0001)
+            f_light = [Bacteria.f_light(l) for l in light]
+            tf_1 = plt.figure()
+            ax1 = tf_1.add_subplot(1,1,1)
+            ax1.set_title("f_light")
+            ax1.set_xlabel("Light Intensity(W/m2)")
+            ax1.set_ylabel("Miller Units")
+            ax1.plot(light, f_light)
+            
+            ahl = np.geomspace(0.1, 250, 200)
+            ci = np.linspace(120, 350, 100)
+            ahlv, civ = np.meshgrid(ahl, ci)
+            print(ahlv.shape)
+            print(civ.shape)
+            f_logic = Bacteria.f_logic(ahlv, civ*self.k3)
+            print(f_logic.shape)
+            print(Bacteria.f_logic(20, 140*self.k3))
+            tf_2 = plt.figure()
+            ax2 = tf_2.add_subplot(1,1,1)
+            ax2.set_title("f_logic")
+            ax2.set_xscale("log")
+            ax2.set_xlabel("AHL Concentration (nM)")
+            ax2.set_ylabel("CI Concentration (Miller Units)")
+            plt.contourf(ahlv, civ, f_logic, 30, cmap="jet", vmin=0, vmax=0.35)
+            plt.colorbar()
+            plt.show()
+            
 
         print("Simulating to: " + str(max(self.time_h)/60) + " minutes")
         if self.plots:
@@ -271,26 +306,20 @@ class Simulation:
         else:
             forwardangle = j + 1
         if i == 0:
-            dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,int(j+self.angle_granularity/2.0) % self.angle_granularity]) / (2.0 * self.dedimR(self.radius_interval)) 
-            du2dr2 = (cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,int(j+self.angle_granularity/2.0) % self.angle_granularity]) / (self.dedimR(self.radius_interval) ** 2.0)
-            #new_state += (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
-            #new_state += (cur_state[forwardradius,j] - 2 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.radius_interval ** 2)
+            dudr = 0 # Flux across the pole cancels out at first order
+            du2dr2 = (2.0*cur_state[forwardradius,j] - 2.0 * cur_state[i,j]) / (self.dedimR(self.radius_interval) ** 2.0)
+
         elif i == (self.radius_granularity - 1):
-            dudr = (cur_state[i,j] - cur_state[i-1,j]) / self.dedimR(self.radius_interval)
-            du2dr2 = (cur_state[i,j] - 2.0 * cur_state[i-1,j] + cur_state[i-2,j]) / (self.dedimR(self.radius_interval) ** 2.0)
-            #new_state += (3 * cur_state[i,j] - 4 * cur_state[i-1,j] + cur_state[i-2,j]) / (2 * self.radius_interval) / self.dedimR(self.radius_h[i])
-            #new_state += (2 * cur_state[i,j] - 5 * cur_state[i-1,j] + 4 * cur_state[i-2,j] - cur_state[i-3,j]) / (self.radius_interval ** 2)
+            dudr = (cur_state[i,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
+            du2dr2 = (cur_state[backwardradius,j]-cur_state[i,j]) / (self.dedimR(self.radius_interval) ** 2.0)
+
+
         else:
             dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
             du2dr2 = (cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2.0)
 
         du2dtheta2 = (cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2.0) / (self.dedimR(self.radius_h[i]) ** 2.0)
-        #if (cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle]) != 0:
-        #    print("radius:" + str(i) + ", angle:" + str(j) + ", curstate:" + str(cur_state[i,j]) + ", val:" + str((cur_state[i,forwardangle] - 2 * cur_state[i,j] + cur_state[i,backwardangle])))
-        #print(np.random.normal(loc=0, scale =0.05*self.k1))
-        #print(np.random.normal(loc=0, scale=0.05*self.k2))
-        #print((self.k1 + np.random.normal(loc=0, scale =0.05*self.k1))/self.k1)
-        #print((self.k2 + np.random.normal(loc=0, scale=0.05*self.k2))/self.k2)
+
         dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
 
         self.plate.dudt[i,j] = dudt;
