@@ -74,7 +74,7 @@ class Simulation:
         try:
             opts, args = getopt.getopt(argv,"o:g:t:pdf",["ofile=", "ginterval=", "plot", "time=", "derivativesplot", "transferfunctions"])
         except getopt.GetoptError:
-            print('edgedetectionsimulation.py -p <makeplots> -o <outputfolder> -g <graph_interval> -t -d')
+            print('edgedetectionsimulation.py -p -o <outputfolder> -g <graph_interval> -t -d -f')
             sys.exit(2)
         for opt, arg in opts:
             if opt in ("-o", "--ofile"): #Set output folder
@@ -146,11 +146,8 @@ class Simulation:
             ahl = np.geomspace(0.1, 250, 200)
             ci = np.linspace(120, 350, 100)
             ahlv, civ = np.meshgrid(ahl, ci)
-            print(ahlv.shape)
-            print(civ.shape)
+            # Note that CI concentration for y-axis is defined in Millers (i.e. output of f_light)
             f_logic = Bacteria.f_logic(ahlv, civ*self.k3)
-            print(f_logic.shape)
-            print(Bacteria.f_logic(20, 140*self.k3))
             tf_2 = plt.figure()
             ax2 = tf_2.add_subplot(1,1,1)
             ax2.set_title("f_logic")
@@ -318,7 +315,7 @@ class Simulation:
             dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
             du2dr2 = (cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2.0)
 
-        du2dtheta2 = (cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2.0) / (self.dedimR(self.radius_h[i]) ** 2.0)
+        du2dtheta2 = (cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2.0)
 
         dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
 
