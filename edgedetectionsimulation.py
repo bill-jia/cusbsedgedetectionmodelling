@@ -97,7 +97,7 @@ class Simulation:
         #Setup initial conditions
         self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
         self.plate_radius = 4.25 # cm
-        self.k1 = 0.03 / 3600 / (self.AHL_Diffusion_Coef/self.plate_radius**2) # nM/hr converted to nM/dimensionless time
+        self.k1 = 0.03/289 / 3600 / (self.AHL_Diffusion_Coef/self.plate_radius**2) # nM/hr converted to nM/dimensionless time
         self.k2 = 0.012 / 3600 / (self.AHL_Diffusion_Coef/self.plate_radius**2) # hr^-1 converted to 1/dimensionless time
         self.k3 = 0.8 # nM/Miller
         self.k4 = 289.0 # Miller units
@@ -176,6 +176,9 @@ class Simulation:
             end = time.time()
             print("Last step took " + str(end-start) + " seconds", end="\r")
         print(self.total_time)
+        cur_state = self.plate.get_cur_state()
+        print("Maximum Bgal concentration (Miller): ", cur_state[1].max())
+        print("Maximum AHL concentration (nM): ", cur_state[0].max())
 
     def make_plots(self,t):
         #Plot Bgal and AHL
