@@ -7,19 +7,21 @@ import numpy as np
 import argparse
 import os.path as path
 
+import matplotlib.pyplot as plt
+
 
 parser = argparse.ArgumentParser(description='Apply desired filter to image and convert to light mask')
 parser.add_argument('imgpath')
 parser.add_argument('maskpath', nargs='?', default=None)
 parser.add_argument('--invert', '-i', action='store_true')
-parser.add_argument('--binary', '-b', action='store_true')
+parser.add_argument('--binarize', '-b', action='store_true')
 parser.add_argument('--blur', '-u', nargs=1, type=float, default=0)
 #Sharpening TBD
 #parser.add_argument('--sharpen', nargs='?', type=float, default=0)
 args = parser.parse_args()
 imgpath = args.imgpath
 maskpath = args.maskpath
-binary = args.binary
+binarize = args.binarize
 blur = args.blur
 invert = args.invert
 
@@ -36,8 +38,11 @@ if invert:
 
 # Binarize if option
 
-if binary:
-    img = ski.filters.threshold_otsu(img)
+if binarize:
+	# fig, ax = ski.filters.try_all_threshold(img, figsize=(10,8), verbose = False)
+	# plt.show()
+	thresh = ski.filters.threshold_otsu(img)
+	img = (img > thresh)*255
 
 # Blur/Sharpen if necessary
 
