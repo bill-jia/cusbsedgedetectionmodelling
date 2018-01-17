@@ -6,6 +6,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import integrate
+import skimage as ski
+import skimage.io
+import skimage.transform
 
 def floatrange(start,end,inter):
     output = [start]
@@ -68,8 +71,10 @@ class Simulation:
         parser.add_argument('--plot', '-p', action='store_true')
         parser.add_argument('--ginterval', '-g', nargs='?', type=int, default = 10)
         parser.add_argument('--dplot', '-d', action='store_true')
-        parser.add_argument('--end_time', '-t', nargs='?', type=int, default=24, help='End time in hours')
+        parser.add_argument('--end_time', '-t', nargs='?', type=float, default=24, help='End time in hours')
         parser.add_argument('--tfs', '-f', action='store_true')
+        parser.add_argument('--maskpath', '-m', nargs='?', default=None)
+        parser.add_argument('--maxlight', '-l', nargs='?', type=float, default = 0.15)
         args = parser.parse_args()
         self.outputfolder = args.opath
         self.plots = args.plot
@@ -77,6 +82,8 @@ class Simulation:
         self.max_time = args.end_time*60*60.0
         self.plot_derivatives = args.dplot
         self.plot_transfer_functions = args.tfs
+        self.mask_path = args.maskpath
+        self.max_light = args.maxlight
 
         #Granularity constants
         self.time_granularity = 100 # Time step twice as fine as space step
@@ -97,7 +104,7 @@ class Simulation:
         self.angle_interval = 2.0 * np.pi / self.angle_granularity
 
         # Generate sampling points
-        # Sampling points start at 
+        # Sampling points start at 1/2 radius_interval
         self.radius_h = floatrange(self.radius_interval/2, self.plate_radius - self.radius_interval/2, self.radius_interval)
         self.angle_h = floatrange(0, 2 * np.pi - self.angle_interval, self.angle_interval)
         self.time_h = floatrange(self.time_interval, self.max_time, self.time_interval)
@@ -107,11 +114,66 @@ class Simulation:
         self.plate = Media(self.radius_granularity, self.angle_granularity)
         #Set light input
         self.light_mask = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        for i in range(0,int(self.radius_granularity/2)):
-            for j in range(0,self.angle_granularity):
-                self.light_mask[i,j] = 1
+        if self.mask_path == None:
+            # If default mask, generate a spot of light half the radius of the plate
+            for i in range(0,int(self.radius_granularity/2)):
+                for j in range(0,self.angle_granularity):
+                    self.light_mask[i,j] = self.max_light
+        else:
+            #If a greyscale image mask is specified, size image according to granularities and normalize to values between 0 and max light
+            
+            # Read image
+            img = ski.io.imread(self.mask_path)
+            
+            # Scale image to resolution of plate radius
+            (y, x) = img.shape
+            print(y,x)
+            scaling_factor = (((x/2)**2 + (y/2)**2)**(0.5))/self.radius_granularity
+            print(scaling_factor)
+            ski.io.imshow(img)
+            # Sample image to populate light mask
+            for i in range(0,int(self.radius_granularity)):
+                for j in range(0,self.angle_granularity):
+                    self.light_mask[i,j] = (self.interp(img, i, j, scaling_factor)/255.0)*self.max_light
+            
+            fig3 = plt.figure()
+            rad = np.linspace(0,self.plate_radius,self.radius_granularity)
+            azm = np.linspace(0,2 * np.pi,self.angle_granularity)
+            th,r = np.meshgrid(azm,rad)
+            z = self.light_mask
+            ax = plt.subplot(1,1,1,projection="polar")
+            ax.set_title("Mask")
+            colors = plt.pcolormesh(th,r,z)
+            plt.colorbar(colors)
+            plt.grid()
+            plt.show()
 
         self.total_time = 0
+
+    def interp(self, img, i, j, scaling_factor):
+        (y_max, x_max) = img.shape
+        x_samp = (i * np.cos(j*2*np.pi/self.angle_granularity))*scaling_factor + x_max/2.0
+        y_samp = y_max/2.0 - (i * np.sin(j*2*np.pi/self.angle_granularity))*scaling_factor
+        #print(x_samp, y_samp)
+        if (x_samp < 0 or x_samp > x_max - 1) or (y_samp < 0 or y_samp > y_max - 1):
+            return 0
+        else:
+            x1 = int(np.floor(x_samp))
+            x2 = int(np.ceil(x_samp))
+            y1 = int(np.floor(y_samp))
+            y2 = int(np.ceil(y_samp))
+            a = (y1, x1)
+            b = (y1, x2)
+            c = (y2, x1)
+            d = (y2, x2)
+            i_samp = ((img[a]*(x2-x_samp) + img[b]*(x_samp-x1))*(y2-y_samp) + (img[c]*(x2-x_samp) + img[d]*(x_samp-x1))*(y_samp-y1))/((x2-x1)*(y2-y1))
+            if i_samp < 0:
+                print(i_samp)
+                print(a,b,c,d)
+            return i_samp
+
+
+
 
     def dedimR(self, r):
         return r / self.plate_radius
