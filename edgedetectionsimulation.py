@@ -9,6 +9,9 @@ from scipy import integrate
 import skimage as ski
 import skimage.io
 import skimage.transform
+import skimage.filters
+
+np.seterr(all='raise')
 
 def floatrange(start,end,inter):
     output = [start]
@@ -75,6 +78,8 @@ class Simulation:
         parser.add_argument('--tfs', '-f', action='store_true')
         parser.add_argument('--maskpath', '-m', nargs='?', default=None)
         parser.add_argument('--maxlight', '-l', nargs='?', type=float, default = 0.15)
+        parser.add_argument('--radius_granularity', '-r', nargs='?', type=int, default = 40)
+        parser.add_argument('--angle_granularity', '-a', nargs='?', type=int, default = 40)
         args = parser.parse_args()
         self.outputfolder = args.opath
         self.plots = args.plot
@@ -84,11 +89,12 @@ class Simulation:
         self.plot_transfer_functions = args.tfs
         self.mask_path = args.maskpath
         self.max_light = args.maxlight
+        self.radius_granularity = args.radius_granularity
+        self.angle_granularity = args.angle_granularity
 
         #Granularity constants
-        self.time_granularity = 100 # Time step twice as fine as space step
-        self.radius_granularity = 40
-        self.angle_granularity = 40
+        self.time_granularity = self.radius_granularity*2 # Time step twice as fine as space step
+ 
         
         #Setup initial conditions
         self.AHL_Diffusion_Coef = 1.67 * (10 ** (-7)) # cm^2/s
@@ -127,10 +133,12 @@ class Simulation:
             
             # Scale image to resolution of plate radius
             (y, x) = img.shape
-            print(y,x)
+            #print(y,x)
             scaling_factor = (((x/2)**2 + (y/2)**2)**(0.5))/self.radius_granularity
-            print(scaling_factor)
-            ski.io.imshow(img)
+            #print(scaling_factor)
+            img = ski.filters.gaussian(img, (1-1/scaling_factor)/2, preserve_range=True)
+
+            #ski.io.imshow(img)
             # Sample image to populate light mask
             for i in range(0,int(self.radius_granularity)):
                 for j in range(0,self.angle_granularity):
@@ -158,15 +166,19 @@ class Simulation:
         if (x_samp < 0 or x_samp > x_max - 1) or (y_samp < 0 or y_samp > y_max - 1):
             return 0
         else:
-            x1 = int(np.floor(x_samp))
-            x2 = int(np.ceil(x_samp))
-            y1 = int(np.floor(y_samp))
-            y2 = int(np.ceil(y_samp))
-            a = (y1, x1)
-            b = (y1, x2)
-            c = (y2, x1)
-            d = (y2, x2)
-            i_samp = ((img[a]*(x2-x_samp) + img[b]*(x_samp-x1))*(y2-y_samp) + (img[c]*(x2-x_samp) + img[d]*(x_samp-x1))*(y_samp-y1))/((x2-x1)*(y2-y1))
+            if (x_samp == np.floor(x_samp)) or (y_samp == np.floor(y_samp)):
+                i_samp = img[int(y_samp), int(x_samp)]
+            else:
+                x1 = int(np.floor(x_samp))
+                x2 = int(np.ceil(x_samp))
+                y1 = int(np.floor(y_samp))
+                y2 = int(np.ceil(y_samp))
+                a = (y1, x1)
+                b = (y1, x2)
+                c = (y2, x1)
+                d = (y2, x2)
+                #print (a, b, c, d, (y_samp, x_samp))
+                i_samp = ((img[a]*(x2-x_samp) + img[b]*(x_samp-x1))*(y2-y_samp) + (img[c]*(x2-x_samp) + img[d]*(x_samp-x1))*(y_samp-y1))/((x2-x1)*(y2-y1))
             if i_samp < 0:
                 print(i_samp)
                 print(a,b,c,d)
@@ -216,6 +228,9 @@ class Simulation:
         else:
             print("No plots being made")
         print("Each time step: " + str(self.time_interval/60) + " minutes")
+        print("Dimensionless radius interval: ", self.dedimR(self.radius_interval))
+        print("Dimensionless time interval: ", self.dedimT(self.time_interval))
+        print("Theta interval: ", self.angle_interval)
         
         for t in self.time_h:
             #print(t)
@@ -225,7 +240,7 @@ class Simulation:
             if count % self.graph_interval == 0 and self.plots :
                 self.make_plots(t);
             end = time.time()
-            print("Last step took " + str(end-start) + " seconds", end="\r")
+            #print("Last step took " + str(end-start) + " seconds", end="\r")
         print(self.total_time)
         cur_state = self.plate.get_cur_state()
         print("Maximum Bgal concentration (Miller): ", cur_state[1].max())
@@ -335,6 +350,7 @@ class Simulation:
         self.total_time += self.dedimT(self.time_interval)
 
 
+
     def UpdateAHL_conc(self,cur_state,i,j):
         dudt = 0
         dudr = 0
@@ -358,18 +374,20 @@ class Simulation:
             forwardangle = j + 1
         if i == 0:
             dudr = 0 # Flux across the pole cancels out at first order
-            du2dr2 = (2.0*cur_state[forwardradius,j] - 2.0 * cur_state[i,j]) / (self.dedimR(self.radius_interval) ** 2.0)
+            du2dr2 = np.around((2.0*cur_state[forwardradius,j] - 2.0 * cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
 
         elif i == (self.radius_granularity - 1):
             dudr = (cur_state[i,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
-            du2dr2 = (cur_state[backwardradius,j]-cur_state[i,j]) / (self.dedimR(self.radius_interval) ** 2.0)
+            du2dr2 = np.around((cur_state[backwardradius,j]-cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
 
 
         else:
             dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
-            du2dr2 = (cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]) / (self.dedimR(self.radius_interval) ** 2.0)
+            du2dr2 = np.around((cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
 
         du2dtheta2 = (cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2.0)
+        
+        du2dtheta2 = np.around(du2dtheta2, decimals=5)
 
         dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
 
