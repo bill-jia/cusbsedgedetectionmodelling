@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys, os, getopt, time
+import sys, os, argparse, time
 from datetime import datetime
 import numpy as np
 import matplotlib as mpl
@@ -62,33 +62,22 @@ class Media:
 
 class Simulation:
     def __init__(self,argv):
-        #Initialize adjustable parameters
-        self.outputfolder = datetime.now().strftime("%y%m%d-%H-%M-%S") #Default output folder is just a timestamp
-        self.graph_interval = 10
-        self.plots = False
-        self.max_time = 24*60*60.0
-        self.plot_derivatives = False
-        self.plot_transfer_functions = False
+        #Initialize adjustable parameters according to command line input
+        parser = argparse.ArgumentParser(description="Edge detection modelling")
+        parser.add_argument('--opath', '-o', nargs='?', default = datetime.now().strftime("%y%m%d-%H-%M-%S"))
+        parser.add_argument('--plot', '-p', action='store_true')
+        parser.add_argument('--ginterval', '-g', nargs='?', type=int, default = 10)
+        parser.add_argument('--dplot', '-d', action='store_true')
+        parser.add_argument('--end_time', '-t', nargs='?', type=int, default=24, help='End time in hours')
+        parser.add_argument('--tfs', '-f', action='store_true')
+        args = parser.parse_args()
+        self.outputfolder = args.opath
+        self.plots = args.plot
+        self.graph_interval = args.ginterval
+        self.max_time = args.end_time*60*60.0
+        self.plot_derivatives = args.dplot
+        self.plot_transfer_functions = args.tfs
 
-        #Change adjustable parameters according to command line input
-        try:
-            opts, args = getopt.getopt(argv,"o:g:t:pdf",["ofile=", "ginterval=", "plot", "time=", "derivativesplot", "transferfunctions"])
-        except getopt.GetoptError:
-            print('edgedetectionsimulation.py -p -o <outputfolder> -g <graph_interval> -t -d -f')
-            sys.exit(2)
-        for opt, arg in opts:
-            if opt in ("-o", "--ofile"): #Set output folder
-                self.outputfolder = arg
-            elif opt in ("-p", "--plot"): #Flag to create graphs
-                self.plots = True                
-            elif opt in ("-g", "--ginterval"): #Set time interval at which graphs are produced
-                self.graph_interval = int(arg)
-            elif opt in ("-d", "--derivativesplot"): # Flag to create graphs of each term in diffusion equation
-                self.plot_derivatives = True
-            elif opt in ("-t", "--time="):
-                self.max_time = float(arg)*60*60 #Set max time of simulation
-            elif opt in ("-f", "--transferfunctions"):
-                self.plot_transfer_functions = True
         #Granularity constants
         self.time_granularity = 100 # Time step twice as fine as space step
         self.radius_granularity = 40

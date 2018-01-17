@@ -11,8 +11,8 @@ import os.path as path
 parser = argparse.ArgumentParser(description='Apply desired filter to image and convert to light mask')
 parser.add_argument('imgpath')
 parser.add_argument('maskpath', nargs='?', default=None)
-parser.add_argument('--invert', '-i', nargs=1, default = False)
-parser.add_argument('--binary', '-b', nargs=1, type=bool, default=False)
+parser.add_argument('--invert', '-i', action='store_true')
+parser.add_argument('--binary', '-b', action='store_true')
 parser.add_argument('--blur', '-u', nargs=1, type=float, default=0)
 #Sharpening TBD
 #parser.add_argument('--sharpen', nargs='?', type=float, default=0)
