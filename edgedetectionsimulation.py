@@ -134,7 +134,7 @@ class Simulation:
             # Scale image to resolution of plate radius
             (y, x) = img.shape
             #print(y,x)
-            scaling_factor = (((x/2)**2 + (y/2)**2)**(0.5))/self.radius_granularity
+            scaling_factor = (((x/2)**2 + (y/2)**2)**(0.5))/(self.radius_granularity*0.95)
             #print(scaling_factor)
             img = ski.filters.gaussian(img, (1-1/scaling_factor)/2, preserve_range=True)
 
@@ -385,9 +385,9 @@ class Simulation:
             dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
             du2dr2 = np.around((cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
 
-        du2dtheta2 = (cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]) / (self.angle_interval ** 2.0)
+        du2dtheta2 = np.around((cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]), decimals=3) / (self.angle_interval ** 2.0)
         
-        du2dtheta2 = np.around(du2dtheta2, decimals=5)
+        du2dtheta2 = np.around(du2dtheta2, decimals=3)
 
         dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
 
