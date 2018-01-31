@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser(description='Apply desired filter to image and convert to light mask')
 parser.add_argument('imgpath')
 parser.add_argument('maskpath', nargs='?', default=None)
+parser.add_argument('--maskname', nargs='?', default=None)
 parser.add_argument('--invert', '-i', action='store_true')
 parser.add_argument('--binarize', '-b', action='store_true')
 parser.add_argument('--blur', '-u', nargs=1, type=float, default=0)
@@ -21,6 +22,7 @@ parser.add_argument('--blur', '-u', nargs=1, type=float, default=0)
 args = parser.parse_args()
 imgpath = args.imgpath
 maskpath = args.maskpath
+maskname = args.maskname
 binarize = args.binarize
 blur = args.blur
 invert = args.invert
@@ -57,8 +59,11 @@ if blur > 0 :
 img = ski.img_as_ubyte(img)
 
 # Save image to output path
-(input_filename, ext) = path.splitext(path.basename(imgpath))
-output_filename = 'mask_' + input_filename + '.tif'
+if maskname is None:
+	(input_filename, ext) = path.splitext(path.basename(imgpath))
+	output_filename = 'mask_' + input_filename + '.tif'
+else:
+	output_filename = maskname + '.tif'
 
 if maskpath is None:
     outputdir = path.dirname(imgpath)
