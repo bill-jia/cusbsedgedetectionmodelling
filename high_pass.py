@@ -7,6 +7,7 @@ import skimage.transform
 import numpy as np
 import argparse
 import os.path as path
+import scipy.signal
 
 import matplotlib.pyplot as plt
 
@@ -38,9 +39,13 @@ plt.colorbar(colors)
 plt.grid()
 plt.show()
 
-img_filt = ski.filters.laplace(img)
-fig2 = plt.figure()
-ax2 = fig2.add_subplot(1,1,1)
+# Manual filtering
+
+filt = -1/6*np.array([[0,-1,0],[-1,100,-1],[0,-1,0]])
+print(filt)
+img_filt = scipy.signal.convolve2d(img, filt)
+fig1 = plt.figure()
+ax1 = fig1.add_subplot(1,1,1)
 colors = plt.pcolormesh(img_filt)
 plt.colorbar(colors)
 plt.grid()
