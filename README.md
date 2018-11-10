@@ -28,10 +28,7 @@ Sets up the simulation parameters and implements the function which will step th
 ### Issues
 1. Time step/resolution seems to be unclear in the paper, which mentions t* = 0.0027 = 24 hours but the calculation doesn't add up. Furthermore, ending the simulation at time t* = 0.0027 results in no change at all, although this may be caused by implementing F_logic incorrectly or the AHL update function. The resolution of the time step is important, because there seems to be different results depending on how fine the time step is.
 2. If t* becomes too large overflow occurs
-3. Edge detection only seems to be happening across the radial axis and no the angle axis
-4. Boundary condition at edge of plate is currently implemented using Backward difference, not sure if this is appropriate
-5. Boundary condition at center of plate is currently implemented by diffusing to the opposite side ((angle + pi) mod 2*pi). This is not quite right because radius cannot be set to 0, so there is an tiny disc at the center of the plate which can't be accessed.
-6. Values at steady state are not the same as in paper (maximum Bgal of around 35, this script has a maxium Bgal of around 60)
+3. Values at steady state are not the same as in paper (maximum Bgal of around 35, this script has a maxium Bgal of around 60)
 
 | Timestep t* = 0.000027 | Timestep t* = 0.00027 | Timestep t* = 0.0027 | Time Elapsed |
 | ---------------------- | --------------------- | -------------------- | ------------ |
