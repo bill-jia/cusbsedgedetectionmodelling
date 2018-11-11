@@ -20,6 +20,11 @@ def floatrange(start,end,inter):
     return output
 
 class Bacteria:
+    '''
+        This class is responsible for modelling the dynamics of the gene expression circuit.
+        It holds all of the constants and the transfer functions that decide an output based
+        on the current state of the cell.
+    '''
     #Initiate constants
     f_light_K = 0.0017 # W/m^2 constant for f_light transfer function
     B_response_max = 298 # Miller units for maximum Beta-galactosidase activity
@@ -48,6 +53,11 @@ class Bacteria:
         return f_logic_num / f_logic_denom
 
 class Media:
+    """
+    This class stores spatial information about the media, i.e. the chemical concentrations
+    at every point and their derivatives across space and time, required for update of the
+    differential equations.
+    """
     def __init__(self, radius_granularity, angle_granularity):
         # Store current state
         self.AHL_history = np.zeros(shape=(radius_granularity, angle_granularity))
@@ -67,6 +77,9 @@ class Media:
         return (self.dudt, self.dudr, self.du2dr2, self.du2dtheta2, self.light_term, self.decay_term)
 
 class Simulation:
+    """
+    This class runs the simulations
+    """
     def __init__(self,argv):
         #Initialize adjustable parameters according to command line input
         parser = argparse.ArgumentParser(description="Edge detection modelling")
@@ -78,8 +91,8 @@ class Simulation:
         parser.add_argument('--tfs', '-f', action='store_true')
         parser.add_argument('--maskpath', '-m', nargs='?', default=None)
         parser.add_argument('--maxlight', '-l', nargs='?', type=float, default = 0.15)
-        parser.add_argument('--radius_granularity', '-r', nargs='?', type=int, default = 40)
-        parser.add_argument('--angle_granularity', '-a', nargs='?', type=int, default = 40)
+        parser.add_argument('--radius_granularity', '-r', nargs='?', type=int, default = 100)
+        parser.add_argument('--angle_granularity', '-a', nargs='?', type=int, default = 100)
         args = parser.parse_args()
         self.outputfolder = args.opath
         self.plots = args.plot
@@ -133,12 +146,9 @@ class Simulation:
             
             # Scale image to resolution of plate radius
             (y, x) = img.shape
-            #print(y,x)
             scaling_factor = (((x/2)**2 + (y/2)**2)**(0.5))/(self.radius_granularity*0.95)
-            #print(scaling_factor)
             img = ski.filters.gaussian(img, (1-1/scaling_factor)/2, preserve_range=True)
 
-            #ski.io.imshow(img)
             # Sample image to populate light mask
             for i in range(0,int(self.radius_granularity)):
                 for j in range(0,self.angle_granularity):
@@ -188,38 +198,21 @@ class Simulation:
 
 
     def dedimR(self, r):
+        """
+        Dedimensionalise radius
+        """
         return r / self.plate_radius
 
     def dedimT(self, t):
+        """
+        Dedimensionalise time
+        """
         return t * self.AHL_Diffusion_Coef / (self.plate_radius ** 2)
 
     def run(self):
         count = 0
         if self.plot_transfer_functions:
-            # Plot transfer functions if flag is true
-            light = floatrange(0, 0.1, 0.0001)
-            f_light = [Bacteria.f_light(l) for l in light]
-            tf_1 = plt.figure()
-            ax1 = tf_1.add_subplot(1,1,1)
-            ax1.set_title("f_light")
-            ax1.set_xlabel("Light Intensity(W/m2)")
-            ax1.set_ylabel("Miller Units")
-            ax1.plot(light, f_light)
-            
-            ahl = np.geomspace(0.1, 250, 200)
-            ci = np.linspace(120, 350, 100)
-            ahlv, civ = np.meshgrid(ahl, ci)
-            # Note that CI concentration for y-axis is defined in Millers (i.e. output of f_light)
-            f_logic = Bacteria.f_logic(ahlv, civ*self.k3)
-            tf_2 = plt.figure()
-            ax2 = tf_2.add_subplot(1,1,1)
-            ax2.set_title("f_logic")
-            ax2.set_xscale("log")
-            ax2.set_xlabel("AHL Concentration (nM)")
-            ax2.set_ylabel("CI Concentration (Miller Units)")
-            plt.contourf(ahlv, civ, f_logic, 30, cmap="jet", vmin=0, vmax=0.35)
-            plt.colorbar()
-            plt.show()
+            self.plot_tfs()
             
 
         print("Simulating to: " + str(max(self.time_h)/60) + " minutes")
@@ -245,6 +238,108 @@ class Simulation:
         cur_state = self.plate.get_cur_state()
         print("Maximum Bgal concentration (Miller): ", cur_state[1].max())
         print("Maximum AHL concentration (nM): ", cur_state[0].max())
+
+    def Step(self, t):
+        """
+        This function steps through time and updates the chemical concentrations based on the equations.
+        """
+        cur_AHL_state = self.plate.get_cur_ahl_state()
+        
+        new_AHL_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        new_CI_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        new_Bgal_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
+        for i in range(0,self.radius_granularity):
+            for j in range(0,self.angle_granularity):
+                new_AHL_state[i,j] = cur_AHL_state[i,j] + self.UpdateAHL_conc(cur_AHL_state,i,j) * self.dedimT(self.time_interval)
+                new_CI_state[i,j] = self.k3 * Bacteria.f_light(self.light_mask[i,j])
+                new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
+        self.plate.AHL_history = new_AHL_state
+        self.plate.CI_history = new_CI_state
+        self.plate.Bgal_history = new_Bgal_state
+        self.total_time += self.dedimT(self.time_interval)
+
+    def UpdateAHL_conc(self,cur_state,i,j):
+        """
+        Calculates the rate change over time of AHL according to the change over space at each time
+        point (reaction-diffusion equation)
+        """
+        dudt = 0
+        dudr = 0
+        du2dr2 = 0
+        du2dtheta2 = 0
+        # Get the radius and angle (accounting for the fact that the plate is a circle)
+        forwardradius, backwardradius, forwardangle, backwardangle = self.get_radius_angles(i, j)
+
+        # Solve the spatial derivatives
+        if i == 0:
+            dudr = 0 # Flux across the pole cancels out at first order
+            du2dr2 = np.around((2.0*cur_state[forwardradius,j] - 2.0 * cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
+        elif i == (self.radius_granularity - 1):
+            dudr = (cur_state[i,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
+            du2dr2 = np.around((cur_state[backwardradius,j]-cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
+        else:
+            dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
+            du2dr2 = np.around((cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
+
+        du2dtheta2 = np.around((cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]), decimals=3) / (self.angle_interval ** 2.0)
+        
+        du2dtheta2 = np.around(du2dtheta2, decimals=3)
+
+        # Update the time derivative according to the reaction-diffusion equation
+        dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
+
+        self.plate.dudt[i,j] = dudt
+        self.plate.dudr[i,j] = dudr * 1.0/self.dedimR(self.radius_h[i])
+        self.plate.du2dr2[i,j] = du2dr2
+        self.plate.du2dtheta2[i,j] = du2dtheta2 *1.0/(self.dedimR(self.radius_h[i]) ** 2.0)
+        self.plate.light_term[i,j] = (self.k1) * Bacteria.f_light(self.light_mask[i,j])
+        self.plate.decay_term[i,j] = - (self.k2) * cur_state[i,j]
+        return dudt
+
+    def get_radius_angles(self, i, j):
+        if i == 0:
+            backwardradius = i
+        else:
+            backwardradius = i - 1
+        if i == (self.radius_granularity - 1):
+            forwardradius = i
+        else:
+            forwardradius = i + 1
+        if j == 0:
+            backwardangle = self.angle_granularity - 1
+        else:
+            backwardangle = j - 1
+        if j == (self.angle_granularity - 1):
+            forwardangle = 0
+        else:
+            forwardangle = j + 1
+        return forwardradius, backwardradius, forwardangle, backwardangle
+
+    def plot_tfs(self):
+        # Plot transfer functions if flag is true
+        light = floatrange(0, 0.1, 0.0001)
+        f_light = [Bacteria.f_light(l) for l in light]
+        tf_1 = plt.figure()
+        ax1 = tf_1.add_subplot(1,1,1)
+        ax1.set_title("f_light")
+        ax1.set_xlabel("Light Intensity(W/m2)")
+        ax1.set_ylabel("Miller Units")
+        ax1.plot(light, f_light)
+        
+        ahl = np.geomspace(0.1, 250, 200)
+        ci = np.linspace(120, 350, 100)
+        ahlv, civ = np.meshgrid(ahl, ci)
+        # Note that CI concentration for y-axis is defined in Millers (i.e. output of f_light)
+        f_logic = Bacteria.f_logic(ahlv, civ*self.k3)
+        tf_2 = plt.figure()
+        ax2 = tf_2.add_subplot(1,1,1)
+        ax2.set_title("f_logic")
+        ax2.set_xscale("log")
+        ax2.set_xlabel("AHL Concentration (nM)")
+        ax2.set_ylabel("CI Concentration (Miller Units)")
+        plt.contourf(ahlv, civ, f_logic, 30, cmap="jet", vmin=0, vmax=0.35)
+        plt.colorbar()
+        plt.show()
 
     def make_plots(self,t):
         #Plot Bgal and AHL
@@ -327,77 +422,6 @@ class Simulation:
             plt.savefig( os.path.join(self.outputfolder,"derivs_" + str(int(t)).zfill(maxzeros) + "_" +
                 str(self.time_granularity)+".png"))
             plt.close(fig2)
-
-
-    def Step(self, t):
-        cur_AHL_state = self.plate.get_cur_ahl_state()
-        
-        new_AHL_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        new_CI_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        new_Bgal_state = np.zeros(shape=(self.radius_granularity,self.angle_granularity))
-        #f = open("debug.txt","w")
-        for i in range(0,self.radius_granularity):
-            #f.write("Radius: " + str(i) + "\n")
-            for j in range(0,self.angle_granularity):
-                new_AHL_state[i,j] = cur_AHL_state[i,j] + self.UpdateAHL_conc(cur_AHL_state,i,j) * self.dedimT(self.time_interval)
-                new_CI_state[i,j] = self.k3 * Bacteria.f_light(self.light_mask[i,j])
-                new_Bgal_state[i,j] = self.k4 * Bacteria.f_logic(new_AHL_state[i,j],new_CI_state[i,j])
-                #f.write("Angle " + str(j) + ": " + str(new_Bgal_state[i,j]))
-        #f.close()
-        self.plate.AHL_history = new_AHL_state
-        self.plate.CI_history = new_CI_state
-        self.plate.Bgal_history = new_Bgal_state
-        self.total_time += self.dedimT(self.time_interval)
-
-
-
-    def UpdateAHL_conc(self,cur_state,i,j):
-        dudt = 0
-        dudr = 0
-        du2dr2 = 0
-        du2dtheta2 = 0
-        if i == 0:
-            backwardradius = i
-        else:
-            backwardradius = i - 1
-        if i == (self.radius_granularity - 1):
-            forwardradius = i
-        else:
-            forwardradius = i + 1
-        if j == 0:
-            backwardangle = self.angle_granularity - 1
-        else:
-            backwardangle = j - 1
-        if j == (self.angle_granularity - 1):
-            forwardangle = 0
-        else:
-            forwardangle = j + 1
-        if i == 0:
-            dudr = 0 # Flux across the pole cancels out at first order
-            du2dr2 = np.around((2.0*cur_state[forwardradius,j] - 2.0 * cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
-
-        elif i == (self.radius_granularity - 1):
-            dudr = (cur_state[i,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
-            du2dr2 = np.around((cur_state[backwardradius,j]-cur_state[i,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
-
-
-        else:
-            dudr = (cur_state[forwardradius,j] - cur_state[backwardradius,j]) / (2.0 * self.dedimR(self.radius_interval))
-            du2dr2 = np.around((cur_state[forwardradius,j] - 2.0 * cur_state[i,j] + cur_state[backwardradius,j]), decimals=5) / (self.dedimR(self.radius_interval) ** 2.0)
-
-        du2dtheta2 = np.around((cur_state[i,forwardangle] - 2.0 * cur_state[i,j] + cur_state[i,backwardangle]), decimals=3) / (self.angle_interval ** 2.0)
-        
-        du2dtheta2 = np.around(du2dtheta2, decimals=3)
-
-        dudt += 1.0/self.dedimR(self.radius_h[i])*dudr + du2dr2 + 1.0/(self.dedimR(self.radius_h[i]) ** 2.0)*du2dtheta2 + (self.k1) * Bacteria.f_light(self.light_mask[i,j]) - (self.k2) * cur_state[i,j]
-
-        self.plate.dudt[i,j] = dudt;
-        self.plate.dudr[i,j] = dudr * 1.0/self.dedimR(self.radius_h[i]);
-        self.plate.du2dr2[i,j] = du2dr2;
-        self.plate.du2dtheta2[i,j] = du2dtheta2 *1.0/(self.dedimR(self.radius_h[i]) ** 2.0);
-        self.plate.light_term[i,j] = (self.k1) * Bacteria.f_light(self.light_mask[i,j])
-        self.plate.decay_term[i,j] = - (self.k2) * cur_state[i,j]
-        return dudt
 
 sim = Simulation(sys.argv[1:])
 sim.run()
